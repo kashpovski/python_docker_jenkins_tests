@@ -10,7 +10,7 @@ services:
     working_dir: /jenkins_home/workspace/${JOB_BASE_NAME}
     user: root
     volumes:
-      - jenkins_home:/docker_tests/jenkins_home
+      - jenkins_home:/jenkins_home
     command: "pytest ${PYTEST_PARAM}"
     networks:
       - test_net
