@@ -1,0 +1,117 @@
+properties([disableConcurrentBuilds()])
+
+pipeline {
+    agent any
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5', artifactNumToKeepStr: '5'))
+        timestamps()
+    }
+
+    parameters {
+        string(name: 'url', defaultValue: 'http://192.168.31.185:8081/', description: 'Base url')
+        choice(name: 'browser', choices: ['chrome', 'firefox', 'MicrosoftEdge', 'opera'], description: 'select browser for test run')
+        booleanParam(name: 'fullscreen', defaultValue: true, description: 'Open browser in full-screen mode')
+        booleanParam(name: 'log_browser', defaultValue: false, description: 'On/off log browser')
+        booleanParam(name: 'remote_vnc', defaultValue: true, description: 'Selenoid: switch vnc')
+        string(name: 'remote_bv', description: 'change browser version (ex. 104.0)')
+        string(name: 'amount', defaultValue: '4', description: 'amount flow')
+        string(name: 'remote_executor', defaultValue: '192.168.31.185', description: 'Remote ip address')
+        string(name: 'ip_address_opencart', defaultValue: '192.168.31.185', description: 'ip host machine where start jenkins')
+        string(name: 'port_for_opencart', defaultValue: '8081', description: 'maping port for opencart')
+        string(name: 'port_for_selenoid', defaultValue: '8082', description: 'maping port for Selenoid UI')
+        string(name: 'git', defaultValue: 'https://github.com/kashpovski/python_docker_jenkins_tests.git', description: 'Git repository')
+        string(name: 'git_branch', defaultValue: 'main', description: 'Git branch')
+    }
+
+    environment {
+        PYTEST_PARAM="""--url ${params.url} \
+                        --browser ${params.browser} \
+                        --remote_executor ${params.remote_executor} \
+                        -n ${params.amount} \
+                        --dist loadscope \
+                        --alluredir /jenkins_home/workspace/${JOB_BASE_NAME}/allure-results/ \
+                    """
+        OPENCART_JENKINS_HOST="${params.ip_address_opencart}"
+        OPENCART_JENKINS_PORT="${params.port_for_opencart}"
+        SELENOID_JENKINS_PORT="${params.port_for_selenoid}"
+    }
+
+    stages {
+
+        stage('Set options for run pytest') {
+            steps {
+                script {
+                    if (params.fullscreen == true) {
+                        PYTEST_PARAM="${PYTEST_PARAM} --fullscreen"
+                    }
+                    if (params.log_browser == true) {
+                        PYTEST_PARAM="${PYTEST_PARAM} --log_browser"
+                    }
+                    if (params.remote_bv != '') {
+                        PYTEST_PARAM="${PYTEST_PARAM} --remote_bv ${params.remote_bv}"
+                    }
+                    if (params.remote_vnc == true) {
+                        PYTEST_PARAM="${PYTEST_PARAM} --remote_vnc"
+                    }
+                }
+            }
+        }
+
+        stage('GitHub Releases') {
+            steps {
+                checkout([$class: 'GitSCM',
+                         branches: [[name: params.git_branch]],
+                         userRemoteConfigs: [[url: params.git]]])
+            }
+        }
+
+        stage('Start opencart in docker') {
+            steps {
+                sh "docker-compose -f opencart/docker-compose.yml up -d"
+                sh "sleep 60"
+                sh "docker ps"
+            }
+        }
+
+        stage('Start selenoid in docker') {
+            steps {
+                sh "docker-compose -f selenoid/docker-compose.yml up -d"
+                sh "docker ps"
+            }
+        }
+
+        stage('Run tests in docker') {
+            environment {
+                PYTEST_PARAM="${PYTEST_PARAM}"
+            }
+            steps {
+                sh "printenv | grep PYTEST_PARAM"
+                sh "docker-compose up"
+                sh "sleep 5"
+                sh "docker ps"
+            }
+        }
+
+        stage('Stop all docker') {
+            steps {
+                sh "docker-compose down --rmi local"
+                sh "docker-compose -f selenoid/docker-compose.yml down"
+                sh "docker-compose -f opencart/docker-compose.yml down -v"
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'logs/'
+            allure([
+                   includeProperties: false,
+                   jdk: '',
+                   properties: [],
+                   reportBuildPolicy: 'ALWAYS',
+                   results: [[path: 'allure-results']]
+                ])
+        }
+    }
+}

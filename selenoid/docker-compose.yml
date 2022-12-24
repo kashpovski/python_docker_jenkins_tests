@@ -1,0 +1,37 @@
+version: '2.3'
+
+services:
+
+  selenoid:
+    image: "aerokube/selenoid"
+    container_name: selenoid
+    networks:
+      - test_net
+    ports:
+      - "4444:4444"
+    volumes:
+      - jenkins_home:/etc/selenoid/jenkins_home:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["-conf", "/etc/selenoid/jenkins_home/workspace/${JOB_BASE_NAME}/selenoid/config/browsers.json",
+              "-container-network", "selenoid_net"]
+
+  selenoid-ui:
+    image: "aerokube/selenoid-ui"
+    container_name: selenoid-ui
+    networks:
+      - test_net
+    links:
+      - selenoid
+    ports:
+      - "${SELENOID_JENKINS_PORT}:8080"
+    command: ["--selenoid-uri", "http://selenoid:4444"]
+    depends_on:
+      - selenoid
+
+networks:
+  test_net:
+    name: selenoid_net
+
+volumes:
+  jenkins_home:
+    name: jenkins_home

@@ -1,0 +1,25 @@
+version: '2.3'
+
+services:
+
+  tests:
+    container_name: tests
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /jenkins_home/workspace/${JOB_BASE_NAME}
+    user: root
+    volumes:
+      - jenkins_home:/docker_tests/jenkins_home
+    command: "pytest ${PYTEST_PARAM}"
+    networks:
+      - test_net
+
+networks:
+  test_net:
+    name: tests_net
+
+volumes:
+  jenkins_home:
+    name: jenkins_home
+
