@@ -29,7 +29,7 @@ CI/CD реализован на базе Jenkins развёрнутое в Docke
 7. Выполняется сбор артефактов (логи работы тестов);
 8. Формирование отчета Allure.
 
-![](Program architecture.png)
+![](https://github.com/kashpovski/python_docker_jenkins_tests/blob/main/Program%20architecture.png?raw=true)
 
 ***
 ### Запуск и работа с программой:
